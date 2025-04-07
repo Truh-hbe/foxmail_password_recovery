@@ -1,0 +1,78 @@
+name: Auto Build and Release
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.19'
+
+      - name: Generate version
+        id: version
+        run: |
+          $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $version = "v0.1.${timestamp}-${shortSha}"
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Build binaries
+        run: |
+          mkdir -p build
+          $env:CGO_ENABLED = 0
+          $env:GOOS = "windows"
+          
+          # Build x64 version
+          $env:GOARCH = "amd64"
+          go build -ldflags="-s -w" -o "build/FPR-${{ steps.version.outputs.VERSION }}-x64.exe" ./main
+          
+          # Build x86 version
+          $env:GOARCH = "386"
+          go build -ldflags="-s -w" -o "build/FPR-${{ steps.version.outputs.VERSION }}-x86.exe" ./main
+
+      - name: Create Release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Auto Release ${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: true
+          files: |
+            build/FPR-${{ steps.version.outputs.VERSION }}-x64.exe
+            build/FPR-${{ steps.version.outputs.VERSION }}-x86.exe
+          body: |
+            自动构建版本 ${{ steps.version.outputs.VERSION }}
+            
+            ### 构建信息
+            - 提交: ${{ github.sha }}
+            - 分支: ${{ github.ref }}
+            - 时间: ${{ steps.version.outputs.VERSION }}
+            
+            ### 文件说明
+            - FPR-${{ steps.version.outputs.VERSION }}-x64.exe: 64位 Windows 版本
+            - FPR-${{ steps.version.outputs.VERSION }}-x86.exe: 32位 Windows 版本
+            
+            ### 注意事项
+            这是自动构建的预发布版本，用于测试目的。
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: build/*.exe
+          retention-days: 5
