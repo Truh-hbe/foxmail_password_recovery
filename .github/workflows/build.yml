@@ -19,7 +19,8 @@ jobs:
             suffix: x64
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -37,7 +38,8 @@ jobs:
           go build -v -o "foxmail_password_recovery_${{ matrix.suffix }}.exe" ./main
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # 更新到 v4 版本
         with:
           name: foxmail_password_recovery_${{ matrix.suffix }}
           path: foxmail_password_recovery_${{ matrix.suffix }}.exe
+          retention-days: 5  # 设置保留时间为5天
